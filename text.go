@@ -35,6 +35,8 @@ const (
 type textOverlay struct {
 	// drawing points relative to image size (ie, 0,0 is top left)
 	x, y int
+	// align is left, center or right. default is left
+	align string
 
 	// text and background colors
 	fg, bg drawColor
@@ -68,7 +70,8 @@ func (t *textOverlayList) Set(val string) error {
 				return fmt.Errorf("parse %q failed: %+v", pair, err)
 			}
 			if strings.HasSuffix(kv[1], "%") {
-				x = x / 100.0 * re_width
+				pct := float64(x) / 100.0
+				x = int64(pct * re_width)
 			}
 			to.x = int(x)
 		case "y":
@@ -77,9 +80,13 @@ func (t *textOverlayList) Set(val string) error {
 				return fmt.Errorf("parse %q failed: %+v", pair, err)
 			}
 			if strings.HasSuffix(kv[1], "%") {
-				y = y / 100.0 * re_height
+				pct := float64(y) / 100.0
+				y = int64(pct * re_height)
 			}
+			fmt.Println(y)
 			to.y = int(y)
+		case "align":
+			to.align = kv[1]
 		case "fg":
 			to.fg, err = parseColor(kv[1])
 			if to.fg == transparent {
@@ -186,17 +193,28 @@ func overlay(img image.Image, to textOverlay) (image.Image, error) {
 		return nil, fmt.Errorf("image is immutable")
 	}
 
+	extent, _ := font.BoundString(to.font, to.s)
+	ex := image.Rect(
+		extent.Min.X.Round(),
+		extent.Min.Y.Round(),
+		extent.Max.X.Round(),
+		extent.Max.Y.Round(),
+	)
+
+	switch to.align {
+	case "center", "c":
+		to.x -= ex.Dx() / 2
+	case "right", "r":
+		to.x -= ex.Dx()
+	case "left", "l", "":
+	default:
+		return nil, fmt.Errorf("invalid align=%s", to.align)
+	}
+
 	if to.bg != transparent {
 		bg := to.bg.Uniform()
-		extent, _ := font.BoundString(to.font, to.s)
-		pt := image.Pt(int(to.x), int(to.y))
-		r := image.Rect(
-			pt.X+(extent.Min.X.Round())-overlayPadding,
-			pt.Y+(extent.Min.Y.Round())-overlayPadding,
-			pt.X+(extent.Max.X.Round())+overlayPadding,
-			pt.Y+(extent.Max.Y.Round())+overlayPadding,
-		)
-		draw.Draw(dst, r, bg, pt, draw.Src)
+		r := ex.Add(image.Point{to.x, to.y}).Inset(-overlayPadding)
+		draw.Draw(dst, r, bg, image.Point{}, draw.Src)
 	}
 
 	fg := to.fg.Uniform()
