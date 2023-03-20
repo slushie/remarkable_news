@@ -34,7 +34,7 @@ const (
 
 type textOverlay struct {
 	// drawing points relative to image size (ie, 0,0 is top left)
-	x, y int64
+	x, y int
 
 	// text and background colors
 	fg, bg drawColor
@@ -63,15 +63,23 @@ func (t *textOverlayList) Set(val string) error {
 		var err error
 		switch kv[0] {
 		case "x":
-			to.x, err = strconv.ParseInt(kv[1], 10, 0)
+			x, err := strconv.ParseInt(strings.TrimSuffix(kv[1], "%"), 10, 0)
 			if err != nil {
 				return fmt.Errorf("parse %q failed: %+v", pair, err)
 			}
+			if strings.HasSuffix(kv[1], "%") {
+				x = x / 100.0 * re_width
+			}
+			to.x = int(x)
 		case "y":
-			to.y, err = strconv.ParseInt(kv[1], 10, 0)
+			y, err := strconv.ParseInt(strings.TrimSuffix(kv[1], "%"), 10, 0)
 			if err != nil {
 				return fmt.Errorf("parse %q failed: %+v", pair, err)
 			}
+			if strings.HasSuffix(kv[1], "%") {
+				y = y / 100.0 * re_height
+			}
+			to.y = int(y)
 		case "fg":
 			to.fg, err = parseColor(kv[1])
 			if to.fg == transparent {
@@ -107,7 +115,7 @@ func (t *textOverlayList) Set(val string) error {
 }
 
 func (t textOverlayList) String() string {
-	return "textOverlayList"
+	return fmt.Sprint([]textOverlay(t))
 }
 
 func parseColor(v string) (drawColor, error) {
@@ -129,7 +137,8 @@ func parseFont(v string) (font.Face, error) {
 
 	f := strings.SplitN(v, ":", 2)
 	if len(f) != 2 {
-		return nil, fmt.Errorf("missing font size")
+		debug("Default font size 12")
+		f = append(f, "12")
 	}
 
 	size, err := strconv.ParseFloat(f[1], 64)
@@ -172,7 +181,10 @@ func (c drawColor) Uniform() image.Image {
 }
 
 func overlay(img image.Image, to textOverlay) (image.Image, error) {
-	dst := img.(draw.Image)
+	dst, ok := img.(draw.Image)
+	if !ok {
+		return nil, fmt.Errorf("image is immutable")
+	}
 
 	if to.bg != transparent {
 		bg := to.bg.Uniform()
@@ -188,12 +200,12 @@ func overlay(img image.Image, to textOverlay) (image.Image, error) {
 	}
 
 	fg := to.fg.Uniform()
-	dfg := font.Drawer{
+	d := font.Drawer{
 		Dst:  dst,
 		Src:  fg,
 		Face: to.font,
 		Dot:  freetype.Pt(int(to.x), int(to.y)),
 	}
-	dfg.DrawString(to.s)
+	d.DrawString(to.s)
 	return img, nil
 }

@@ -9,9 +9,9 @@ import (
 	"github.com/disintegration/imaging"
 )
 
-func main() {
-	var text textOverlayList
+var text textOverlayList
 
+func main() {
 	// ----- flag parsing -----
 
 	url := flag.String("url", "", "input URL")
@@ -24,7 +24,6 @@ func main() {
 	mode := flag.String("mode", "fill", "image scaling mode (fill, center)")
 	scale := flag.Float64("scale", 1, "scale image prior to centering")
 	flag.Var(&text, "overlay", "text overlay, format: 's=some_text,font=./path/to.ttf:12'")
-
 	// top := flag.Int("top", 0, "crop from top")
 	// left := flag.Int("left", 0, "crop from left")
 	// right := flag.Int("right", 0, "crop from right")
