@@ -2,13 +2,16 @@ package main
 
 import (
 	"flag"
-	"time"
 	"fmt"
 	"image"
+	"time"
+
 	"github.com/disintegration/imaging"
 )
 
 func main() {
+	var text textOverlayList
+
 	// ----- flag parsing -----
 
 	url := flag.String("url", "", "input URL")
@@ -20,11 +23,14 @@ func main() {
 	test := flag.Bool("test", false, "disable wait-online and cooldown")
 	mode := flag.String("mode", "fill", "image scaling mode (fill, center)")
 	scale := flag.Float64("scale", 1, "scale image prior to centering")
+	flag.Var(&text, "overlay", "text overlay, format: 's=some_text,font=./path/to.ttf:12'")
+
 	// top := flag.Int("top", 0, "crop from top")
 	// left := flag.Int("left", 0, "crop from left")
 	// right := flag.Int("right", 0, "crop from right")
 	// bottom := flag.Int("bottom", 0, "crop from bottom")
 	cooldown := flag.Int("cooldown", 3600, "minimum seconds to wait before attempting download again")
+
 	flag.Parse()
 
 	if *verbose {
@@ -48,11 +54,20 @@ func main() {
 		}
 		// img = adjust(img, *top, *left, *right, *bottom)
 		img = adjust(img, *mode, *scale)
+
+		for _, to := range text {
+			img, err = overlay(img, to)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+		}
+
 		imaging.Save(img, *output)
 		debug("Image saved to ", *output)
 	} else {
 		// initialize with zero date
-		time_last_success := time.Time{};
+		var time_last_success time.Time
 
 		online := make(chan int)
 		go wait_online(online)
@@ -60,7 +75,7 @@ func main() {
 		// loop forever and wait for network online events
 		for {
 			// wait for network online message from wpa supplicant
-			<- online
+			<-online
 			debug("Network online")
 
 			// FIXME - need to wait a few seconds for DNS?
@@ -88,6 +103,13 @@ func main() {
 
 			// img = adjust(img, *top, *left, *right, *bottom)
 			img = adjust(img, *mode, *scale)
+			for _, to := range text {
+				img, err = overlay(img, to)
+				if err != nil {
+					fmt.Println(err)
+					return
+				}
+			}
 			imaging.Save(img, *output)
 			debug("Image saved to ", *output)
 		}
